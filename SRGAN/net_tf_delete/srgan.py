@@ -1,8 +1,15 @@
+import numpy as np
+
 import tensorflow as tf
 from tensorflow.python.keras import layers
 from tensorflow.python.keras.layers.advanced_activations import LeakyReLU
 from tensorflow.python.keras.optimizer_v2.adam import Adam
 from tensorflow.python.keras import Model, Input
+
+import matplotlib.pyplot as plt
+
+import os
+import datetime
 
 print(tf.__version__)
 
@@ -14,6 +21,10 @@ class SRGAN():
         self.lr_size = lr_size
         self.hr_size = hr_size
         self.residual_blocks_count = 16
+        patch = int(self.hr_size[0] / 2 ** 4)
+        self.disc_patch = (patch, patch, 1)
+        self.gf = 64
+        self.df = 64
         optimizer = Adam(.0002, .5)
         self.vgg_part = self.build_vgg()
         self.vgg_part.trainable = False
@@ -29,7 +40,6 @@ class SRGAN():
         validity = self.discriminator(fake_hr)
         self.combined = Model([img_lr, img_hr], [validity, fake_features])
         self.combined.compile(loss=['binary_crossentropy', 'mse'], loss_weights=[1e-3, 1], optimizer=optimizer)
-
 
     def build_vgg(self):
         vgg = tf.keras.applications.VGG19(weights="imagenet")
@@ -92,5 +102,50 @@ class SRGAN():
         out = layers.Dense(1, activation='sigmoid')(out)
         return Model(iut, out)
 
+    def train(self, epoch_count, batch_size=1, sample_interval=50):
+        start_time = datetime.datetime.now()
+        for epoch in range(epoch_count):
+            hr_images, lr_images = self.data_loader.load_data(batch_size)
+            fake_hr_images = self.generator.predict(lr_images)
+            valid = np.ones((batch_size,) + self.disc_patch)
+            fake = np.zeros((batch_size,) + self.disc_patch)
+            d_loss_real = self.discriminator.train_on_batch(hr_images, valid)
+            d_loss_fake = self.discriminator.train_on_batch(fake_hr_images, fake)
+            hr_images, lr_images = self.data_loader.load_data(batch_size)
+            valid = np.ones((batch_size,) + self.disc_patch)
+            image_features = self.vgg_part.predict(hr_images)
+            elapsed_time = datetime.datetime.now() - start_time
+            print("%d time: %s" % (epoch, elapsed_time))
+            if epoch % sample_interval == 0:
+                self.sample_images(epoch)
+            d_loss = .5 * np.add(d_loss_real, d_loss_fake)
+            g_loss = self.combined.train_on_batch([lr_images, hr_images], [valid, image_features])
 
-srgan = SRGAN((1, 1), (4, 4))
+    def sample_images(self, epoch):
+        os.makedirs('images/%s' % self.dataset_name, exist_ok=True)
+        hr_images, lr_images = self.data_loader.load_data(batch_size=2, is_testing=True)
+        fake_hr_images = self.generator.predict(lr_images)
+        lr_images = .5 * lr_images + .5
+        hr_images = .5 * hr_images + .5
+        fake_hr_images = .5 * fake_hr_images + .5
+        titles = ['Generated', 'Original']
+        fig, axs = plt.subplots(2, 2)
+        count = 0
+        for row in range(2):
+            for col, image in enumerate([fake_hr_images, hr_images]):
+                axs[row, col].imshow(image[row])
+                axs[row, col].set_title(titles[col])
+                axs[row, col].axis('off')
+            count += 1
+        fig.savefig("images/%s/%d.png" % (self.dataset_name, epoch))
+        plt.close()
+        for i in range(2):
+            fig = plt.figure()
+            plt.imshow(lr_images[i])
+            fig.savefig('images/%s/%d_%d.png' % (self.dataset_name, epoch, i))
+            plt.close()
+
+
+if __name__ == '__main__':
+    net = SRGAN((64, 64), (256, 256))
+    net.train(epoch_count=30000, batch_size=1, sample_interval=50)
