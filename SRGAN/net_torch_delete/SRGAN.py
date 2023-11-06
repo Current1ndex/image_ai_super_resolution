@@ -24,7 +24,7 @@ class SRGAN(nn.Module):
     def if_run_d(self):
         return self.discriminator and self.gan_loss
 
-    def g_step(self, batch_outputs: torch.Tensor, batch_gt_data: torch.Tensor):
+    def g_step(self, batch_outputs, batch_gt_data):
         losses = dict()
         if self.pixel_loss:
             losses['loss_pix'] = self.pixel_loss(batch_outputs, batch_gt_data)
@@ -40,17 +40,17 @@ class SRGAN(nn.Module):
             losses['loss_gan'] = self.gan_loss(fake_g_pred, target_is_real=True, is_disc=False)
         return losses
 
-    def d_step_real(self, batch_outputs, batch_gt_data: torch.Tensor):
+    def d_step_real(self, batch_outputs, batch_gt_data):
         real_d_pred = self.discriminator(batch_gt_data)
         loss_d_real = self.gan_loss(real_d_pred, target_is_real=True, is_disc=True)
         return loss_d_real
 
-    def d_step_fake(self, batch_outputs: torch.Tensor, batch_gt_data):
+    def d_step_fake(self, batch_outputs, batch_gt_data):
         fake_d_pred = self.discriminator(batch_outputs.detach())
         loss_d_fake = self.gan_loss(fake_d_pred, target_is_real=False, is_disc=True)
         return loss_d_fake
 
-    def g_step_with_optim(self, batch_outputs: torch.Tensor, batch_gt_data: torch.Tensor, optim_wrapper: OptimWrapperDict):
+    def g_step_with_optim(self, batch_outputs, batch_gt_data, optim_wrapper):
         g_optim_wrapper = optim_wrapper['generator']
         with g_optim_wrapper.optim_context(self):
             losses_g = self.g_step(batch_outputs, batch_gt_data)
@@ -58,7 +58,7 @@ class SRGAN(nn.Module):
         g_optim_wrapper.update_params(parsed_losses_g)
         return log_vars_g
 
-    def d_step_with_optim(self, batch_outputs: torch.Tensor, batch_gt_data: torch.Tensor, optim_wrapper: OptimWrapperDict):
+    def d_step_with_optim(self, batch_outputs, batch_gt_data, optim_wrapper):
         log_vars = dict()
         d_optim_wrapper = optim_wrapper['discriminator']
         with d_optim_wrapper.optim_context(self):
@@ -82,7 +82,7 @@ class SRGAN(nn.Module):
         batch_gt_data = data_samples.gt_img
         return batch_gt_data
 
-    def train_step(self, data: List[dict], optim_wrapper: OptimWrapperDict) -> Dict[str, torch.Tensor]:
+    def train_step(self, data, optim_wrapper) -> Dict[str, torch.Tensor]:
         g_optim_wrapper = optim_wrapper['generator']
         data = self.data_preprocessor(data, True)
         batch_inputs = data['inputs']
