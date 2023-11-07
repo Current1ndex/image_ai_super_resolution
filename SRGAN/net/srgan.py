@@ -10,13 +10,8 @@ import datetime
 import glob
 import argparse
 
-<<<<<<< HEAD
 from SRGAN.data_loader import DataLoader
 from SRGAN.preprocessing import ImageSlicer
-=======
-from data_loader import DataLoader
-from preprocessing import ImageSlicer
->>>>>>> 39448e9119d95ef408655395d4ceb12bb7fbca56
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--rem", '-r', help="delete files in directories saves and images", action="store_true")
@@ -78,11 +73,7 @@ class SRGAN(keras.Model):
 
     def build_vgg(self):
         vgg = keras.applications.VGG19(weights="imagenet", include_top=False, input_shape=(self.hr_height, self.hr_width, self.channels))
-<<<<<<< HEAD
         vgg = keras.Model(inputs=vgg.input, outputs=[vgg.layers[9].output])
-=======
-        vgg.outputs = [vgg.layers[9].output]
->>>>>>> 39448e9119d95ef408655395d4ceb12bb7fbca56
         img = keras.Input(shape=self.hr_shape)
         img_features = vgg(img)
         return keras.Model(img, img_features)
@@ -118,10 +109,7 @@ class SRGAN(keras.Model):
         c2 = keras.layers.Add()([c2, c1])
 
         u1 = deconv2d(c2)
-<<<<<<< HEAD
         # u2 = deconv2d(u1)
-=======
->>>>>>> 39448e9119d95ef408655395d4ceb12bb7fbca56
         gen_hr = keras.layers.Conv2D(self.channels, kernel_size=9, strides=1, padding='same', activation='tanh')(u1)
 
         return keras.Model(img_lr, gen_hr)
@@ -268,7 +256,6 @@ class SRGAN(keras.Model):
         self.slicer = ImageSlicer(path, (200, 200), BATCH=False, PADDING=False)
         self.transformed_image = self.slicer.transform()
         self.batch_images = self.slicer.save_images(self.transformed_image)
-<<<<<<< HEAD
         # fake_img_batch = []
         # for r in range(0, self.slicer.r * self.slicer.c):
         #     img = self.batch_images[r, :, :, :]
@@ -287,25 +274,6 @@ class SRGAN(keras.Model):
         # fake_img_batch = np.squeeze(fake_img_batch, axis=1)
         # fake_img_batch = np.array(((fake_img_batch + 1) * 127.5), dtype=int)
         # fake_img_batch = np.reshape(fake_img_batch, (img_max_height, img_max_width, 3), order='A')
-=======
-        fake_img_batch = []
-        for r in range(0, self.slicer.r * self.slicer.c):
-            img = self.batch_images[r, :, :, :]
-            img = np.expand_dims(img, axis=0)
-            fake_img = self.generator.predict(img)
-            fake_img = np.array(fake_img)
-            fake_img = np.squeeze(fake_img, axis=0)
-            fake_img = np.array(((fake_img + 0.2) * 200), dtype=np.uint8)
-
-            Image.fromarray(fake_img.astype(np.uint8)).save("temp/img%s.jpg" % r)
-            fake_img_batch.append(fake_img)
-        img_max_width = self.slicer.c * 400
-        img_max_height = self.slicer.r * 400
-
-        fake_img_batch = np.squeeze(fake_img_batch, axis=1)
-        fake_img_batch = np.array(((fake_img_batch + 1) * 127.5), dtype=int)
-        fake_img_batch = np.reshape(fake_img_batch, (img_max_height, img_max_width, 3), order='A')
->>>>>>> 39448e9119d95ef408655395d4ceb12bb7fbca56
         ims = os.listdir('temp')
         big_im = Image.new('RGB', (img_max_width, img_max_height))
         yy = 0
