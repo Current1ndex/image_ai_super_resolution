@@ -2,7 +2,7 @@ import os
 
 from PIL import Image
 
-dir_path = 'datasets/DIV2K/'
+dir_path = 'F:/DIV2K/'
 dir_x1_path = dir_path + 'DIV2K_train_HR/'
 dir_x2_path = dir_path + 'DIV2K_train_LR_bicubic/X2/'
 dir_x3_path = dir_path + 'DIV2K_train_LR_bicubic/X3/'
