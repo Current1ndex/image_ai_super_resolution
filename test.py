@@ -1,7 +1,5 @@
-import torch
-from torchvision.models import vgg19
+import numpy as np
+
+print(np.array([111, 2]).shape)
 
 
-vgg19_model = vgg19(weights='IMAGENET1K_V1')
-print(vgg19_model)
-print(list(vgg19_model.features.children())[:18])

@@ -72,12 +72,8 @@ class GeneratorResNet(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, input_shape):
+    def __init__(self, inc=3):
         super(Discriminator, self).__init__()
-        self.input_shape = input_shape
-        inc, in_height, in_width = self.input_shape
-        patch_h, patch_w = int(in_height / 2 ** 4), int(in_width / 2 ** 4)
-        self.output_shape = (1, patch_h, patch_w)
         def discriminator_block(inc, ouc, first_block=False):
             layers = []
             layers.append(nn.Conv2d(inc, ouc, 3, 1, 1))

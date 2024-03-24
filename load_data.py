@@ -1,42 +1,46 @@
-import glob
-import random
 import os
-import numpy as np
 
-import torch
-from torch.utils.data import Dataset
+import numpy as np
 from PIL import Image
+
+from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as transforms
 
-mean = np.array([0.485, 0.456, 0.406])
-std = np.array([0.229, 0.224, 0.225])
 
 
 class ImageDataset(Dataset):
-    def __init__(self, root, hr_shape):
-        hr_height, hr_width = hr_shape
+    def __init__(self, images_path, labels_path):
         self.lr_transform = transforms.Compose(
             [
-                transforms.Resize((hr_height // 4, hr_height // 4), Image.BICUBIC),
                 transforms.ToTensor(),
-                transforms.Normalize(mean, std),
             ]
         )
         self.hr_transform = transforms.Compose(
             [
-                transforms.Resize((hr_height, hr_height), Image.BICUBIC),
                 transforms.ToTensor(),
-                transforms.Normalize(mean, std),
             ]
         )
-
-        self.files = sorted(glob.glob(root + "/*.*"))
+        self.images_path = images_path
+        self.labels_path = labels_path
+        self.images_name = sorted(os.listdir(images_path))
 
     def __getitem__(self, index):
-        img = Image.open(self.files[index % len(self.files)])
-        img_lr = self.lr_transform(img)
-        img_hr = self.hr_transform(img)
-        return {"lr": img_lr, "hr": img_hr}
+        imn = self.images_name[index % len(self.images_name)]
+        image = Image.open(self.images_path + imn)
+        label = Image.open(self.labels_path + imn.replace('x2', ''))
+        img_lr = self.lr_transform(image)
+        img_hr = self.hr_transform(label)
+        return {"lr": img_lr, "hr": img_hr, "hs": np.array(img_hr).shape}
 
     def __len__(self):
-        return len(self.files)
+        return len(self.images_name)
+
+
+def get_div2k_data(tip, tlp, bs, sh):
+    dataloader = DataLoader(
+        ImageDataset(tip, tlp),
+        batch_size=bs, 
+        shuffle=sh, 
+    )
+    return dataloader
+
