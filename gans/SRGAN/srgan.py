@@ -10,11 +10,10 @@ class ResidualBlock(nn.Module):
             nn.ReLU(),
             nn.Conv2d(64, 64, 3, 1, 1),
             nn.BatchNorm2d(64),
-            nn.Conv2d()
         )
         for module in self.cb:
             if isinstance(module, nn.Conv2d):
-                nn.init.trunc_normal_(module, std=.02)
+                nn.init.trunc_normal_(module.weight, std=.02)
 
     def forward(self, x):
         return self.cb(x) + x
@@ -39,11 +38,11 @@ class SRGAN_G(nn.Module):
         self.r3 = nn.ReLU()
         self.c5 = nn.Conv2d(64, 3, 1, 1)
         self.th = nn.Tanh()
-        for module in self.modules:
+        for module in self.modules():
             if isinstance(module, nn.Conv2d):
-                nn.init.trunc_normal_(module, std=.02)
+                nn.init.trunc_normal_(module.weight, std=.02)
             if isinstance(module, nn.BatchNorm2d):
-                nn.init.trunc_normal_(module, mean=1., std=.02)
+                nn.init.trunc_normal_(module.weight, mean=1., std=.02)
 
     def forward(self, x):
         x = self.r1(self.c1(x))
@@ -104,7 +103,12 @@ class SRGAN_D(nn.Module):
             nn.BatchNorm2d(512)
         )
         self.ft = nn.Flatten()
-        self.l1 = nn.Linear()
+        self.l1 = nn.Linear(6, 1)
+        for module in self.modules():
+            if isinstance(module, nn.Conv2d):
+                nn.init.trunc_normal_(module.weight, std=.02)
+            if isinstance(module, nn.BatchNorm2d):
+                nn.init.trunc_normal_(module.weight, mean=1., std=.02)
 
     def forward(self, x):
         return self.l1(self.ft(self.sample_block(x) + x))
