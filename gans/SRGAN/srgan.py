@@ -1,95 +1,112 @@
 import torch
 import torch.nn as nn
-from torchvision.models import vgg19
-
-
-class FeatureExtractor(nn.Module):
-    def __init__(self):
-        super(FeatureExtractor, self).__init__()
-        self.feature_extractor = nn.Sequential(
-            *list(
-                vgg19(weights='IMAGENET1K_V1').features.children()
-            )[:18]
-        )
-
-    def forward(self, img):
-        return self.feature_extractor(img)
-
 
 class ResidualBlock(nn.Module):
-    def __init__(self, inc):
+    def __init__(self) -> None:
         super(ResidualBlock, self).__init__()
-        self.conv_block = nn.Sequential(
-            nn.Conv2d(inc, inc, 3, 1, 1),
-            nn.BatchNorm2d(inc, 0.8),
-            nn.PReLU(),
-            nn.Conv2d(inc, inc, 3, 1, 1),
-            nn.BatchNorm2d(inc, 0.8),
+        self.cb = nn.Sequential(
+            nn.Conv2d(64, 64, 3, 1, 1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, 3, 1, 1),
+            nn.BatchNorm2d(64),
+            nn.Conv2d()
         )
+        for module in self.cb:
+            if isinstance(module, nn.Conv2d):
+                nn.init.trunc_normal_(module, std=.02)
 
     def forward(self, x):
-        return x + self.conv_block(x)
+        return self.cb(x) + x
 
 
-class GeneratorResNet(nn.Module):
-    def __init__(self, inc=3, onc=3, rn=16):
-        super(GeneratorResNet, self).__init__()
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(inc, 64, 9, 1, 4), 
-            nn.PReLU()
-        )
-        res_blocks = []
-        for _ in range(rn):
-            res_blocks.append(ResidualBlock(64))
-        self.res_blocks = nn.Sequential(*res_blocks)
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(64, 64, 3, 1, 1), 
-            nn.BatchNorm2d(64, 0.8)
-        )
-        upsampling = []
-        for out_features in range(2):
-            upsampling += [
-                # nn.Upsample(scale_factor=2),
-                nn.Conv2d(64, 256, 3, 1, 1),
-                nn.BatchNorm2d(256),
-                nn.PixelShuffle(upscale_factor=2),
-                nn.PReLU(),
-            ]
-        self.upsampling = nn.Sequential(*upsampling)
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(64, onc, kernel_size=9, stride=1, padding=4),
-            nn.Tanh()
-        )
+class SRGAN_G(nn.Module):
+    def __init__(self, inc, n) -> None:
+        super(SRGAN_G, self).__init__()
+        self.c1 = nn.Conv2d(inc, 64, 3, 1, 1)
+        self.r1 = nn.ReLU()
+        rb = []
+        for _ in range(n):
+            rb.append(ResidualBlock())
+        self.rb = nn.Sequential(*rb)
+        self.c2 = nn.Conv2d(64, 64, 3, 1, 1)
+        self.b1 = nn.BatchNorm2d(64)
+        self.c3 = nn.Conv2d(64, 256, 3, 1, 1)
+        # SubpixelConv2d = 卷积后减小通道数量，增加图像尺寸
+        # 或者直接使用 UpSampling 层
+        self.r2 = nn.ReLU()
+        self.c4 = nn.Conv2d(64, 256, 3, 1, 1)
+        self.r3 = nn.ReLU()
+        self.c5 = nn.Conv2d(64, 3, 1, 1)
+        self.th = nn.Tanh()
+        for module in self.modules:
+            if isinstance(module, nn.Conv2d):
+                nn.init.trunc_normal_(module, std=.02)
+            if isinstance(module, nn.BatchNorm2d):
+                nn.init.trunc_normal_(module, mean=1., std=.02)
 
     def forward(self, x):
-        out1 = self.conv1(x)
-        out = self.res_blocks(out1)
-        out2 = self.conv2(out)
-        out = torch.add(out1, out2)
-        out = self.upsampling(out)
-        out = self.conv3(out)
-        return out
+        x = self.r1(self.c1(x))
+        t = x
+        x = self.rb(x)
+        x = self.b1(self.c2(x))
+        x = x + t
+        x = self.c3(x)
+        _, c, h, w = x.size()
+        x = torch.reshape(x, (c // 4, h * 2, w * 2))
+        x = self.r2(x)
+        x = self.c4(x)
+        _, c, h, w = x.size()
+        x = torch.reshape(x, (c // 4, h * 2, w * 2))
+        x = self.r3(x)
+        x = self.c5(x)
+        y = self.th(x)
+        return y
 
 
-class Discriminator(nn.Module):
-    def __init__(self, inc=3):
-        super(Discriminator, self).__init__()
-        def discriminator_block(inc, ouc, first_block=False):
-            layers = []
-            layers.append(nn.Conv2d(inc, ouc, 3, 1, 1))
-            if not first_block:
-                layers.append(nn.BatchNorm2d(ouc))
-            layers.append(nn.LeakyReLU(0.2, inplace=True))
-            layers.append(nn.Conv2d(ouc, ouc, 3, 2, 1))
-            layers.append(nn.BatchNorm2d(ouc))
-            layers.append(nn.LeakyReLU(0.2, inplace=True))
-            return layers
-        layers = []
-        for i, ouc in enumerate([64, 128, 256, 512]):
-            layers.extend(discriminator_block(inc, ouc, first_block=(i == 0)))
-            inc = ouc
-        layers.append(nn.Conv2d(ouc, 1, 3, 1, 1))
-        self.model = nn.Sequential(*layers)
+class SRGAN_D(nn.Module):
+    def __init__(self) -> None:
+        super(SRGAN_D, self).__init__()
+        self.sample_block = nn.Sequential(
+            nn.Conv2d(64, 64, 3, 2, 1),
+            nn.LeakyReLU(),
+            nn.Conv2d(64, 128, 3, 2, 1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(),
+            nn.Conv2d(128, 256, 3, 2, 1),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(),
+            nn.Conv2d(256, 512, 3, 2, 1),
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(),
+            nn.Conv2d(512, 1024, 3, 2, 1),
+            nn.BatchNorm2d(1024),
+            nn.LeakyReLU(),
+            nn.Conv2d(1024, 2048, 3, 2, 1),
+            nn.BatchNorm2d(2048),
+            nn.LeakyReLU(),
+            nn.Conv2d(2048, 1024, 1, 1),
+            nn.BatchNorm2d(2048),
+            nn.LeakyReLU(),
+            nn.Conv2d(2048, 1024, 1, 1),
+            nn.BatchNorm2d(1024),
+            nn.LeakyReLU(),
+            nn.Conv2d(1024, 512, 1, 1),
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(),
+            nn.Conv2d(512, 128, 1, 1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(),
+            nn.Conv2d(128, 128, 3, 1, 1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(),
+            nn.Conv2d(128, 512, 3, 1, 1),
+            nn.BatchNorm2d(512)
+        )
+        self.ft = nn.Flatten()
+        self.l1 = nn.Linear()
 
-    def forward(self, img):
-        return self.model(img)
+    def forward(self, x):
+        return self.l1(self.ft(self.sample_block(x) + x))
+
+

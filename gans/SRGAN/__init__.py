@@ -1,1 +1,1 @@
-from gans.SRGAN.srgan import FeatureExtractor, GeneratorResNet, Discriminator
+from gans.SRGAN.srgan import SRGAN_G, SRGAN_D
