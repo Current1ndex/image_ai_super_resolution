@@ -7,6 +7,7 @@ from torchvision.models.vgg import vgg19, VGG19_Weights
 from configs import get_srgan_config, get_div2k_config
 from gans.SRGAN import SRGAN_G, SRGAN_D
 from load_data import get_div2k_data
+from losses import LossInit, LossG, LossD
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -28,17 +29,40 @@ train_dl, valid_dl = get_div2k_data(
 )
 
 loss_mse = nn.MSELoss()
-criterion_content = nn.L1Loss()
+loss_ce = nn.CrossEntropyLoss()
 
+optim_I = optim.Adam(net_G.parameters(), lr=nc.lr)
 optim_G = optim.Adam(net_G.parameters(), lr=nc.lr)
 optim_D = optim.Adam(net_D.parameters(), lr=nc.lr)
 
-for epoch in range(nc.epoch_count):
-    for index, image in enumerate(train_dl):
-        hr = image['hr'].to(device)
-        lr = image['lr'].to(device)
-        optim_G.zero_grad()
-        gr = net_G(lr)
+
+def init():
+    for _ in range(nc.init_count):
+        for image in train_dl:
+            hr = image['hr'].to(device)
+            lr = image['lr'].to(device)
+            optim_G.zero_grad()
+            loss_i = LossInit(net_G, loss_mse)(lr, hr)
+            loss_i.backward()
+            optim_G.step()
 
 
+def train():
+    for epoch in range(nc.epoch_count):
+        for image in train_dl:
+            hr = image['hr'].to(device)
+            lr = image['lr'].to(device)
+            optim_G.zero_grad()
+            loss_g = LossG(net_G, net_D, net_vgg, loss_ce, loss_mse)(lr, hr)
+            loss_g.backward()
+            optim_G.step()
+            optim_D.zero_grad()
+            loss_d = LossD(net_G, net_D, loss_ce)(lr, hr)
+            loss_d.backward()
+            optim_D.step()
+            print('[Epoch: %d]: [G-loss: %f] [D-loss: %f]' % (epoch, loss_g, loss_d))
+
+
+# init()
+train()
 

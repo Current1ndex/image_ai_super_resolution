@@ -52,11 +52,11 @@ class SRGAN_G(nn.Module):
         x = x + t
         x = self.c3(x)
         _, c, h, w = x.size()
-        x = torch.reshape(x, (c // 4, h * 2, w * 2))
+        x = torch.reshape(x, (-1, c // 4, h * 2, w * 2))
         x = self.r2(x)
         x = self.c4(x)
         _, c, h, w = x.size()
-        x = torch.reshape(x, (c // 4, h * 2, w * 2))
+        x = torch.reshape(x, (-1, c // 4, h * 2, w * 2))
         x = self.r3(x)
         x = self.c5(x)
         y = self.th(x)
@@ -85,7 +85,7 @@ class SRGAN_D(nn.Module):
             nn.BatchNorm2d(2048),
             nn.LeakyReLU(),
             nn.Conv2d(2048, 1024, 1, 1),
-            nn.BatchNorm2d(2048),
+            nn.BatchNorm2d(1024),
             nn.LeakyReLU(),
             nn.Conv2d(2048, 1024, 1, 1),
             nn.BatchNorm2d(1024),
@@ -111,6 +111,7 @@ class SRGAN_D(nn.Module):
                 nn.init.trunc_normal_(module.weight, mean=1., std=.02)
 
     def forward(self, x):
-        return self.l1(self.ft(self.sample_block(x) + x))
+        x = self.sample_block(x) + x
+        return self.l1(self.ft(x))
 
 

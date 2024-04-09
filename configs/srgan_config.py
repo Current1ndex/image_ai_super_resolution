@@ -5,10 +5,11 @@ def get_srgan_config():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--epoch_start", type=int, default=0)
-    parser.add_argument("--epoch_count", type=int, default=10)
+    parser.add_argument("--epoch_count", type=int, default=50)
+    parser.add_argument('--init_count', type=int, default=10)
 
     parser.add_argument("--data_name", type=str, default="div2k")
-    parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--input_channel", type=int, default=3)
     parser.add_argument("--lr_size", type=tuple, default=(96, 96))
     parser.add_argument("--rate", type=int, default=4)
